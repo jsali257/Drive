@@ -1,17 +1,18 @@
 ﻿'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FolderOpen, FolderPlus, Trash2, RefreshCw, ChevronRight, Home,
-  Pencil, X, Check, Folder, Upload, Files, Download,
+  Pencil, X, Check, Folder, Upload, Files, Download, Share2, Link2, CheckCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { api, formatBytes } from '@/lib/api';
 import { cn, getFileBadgeColor } from '@/lib/utils';
 import { UploadModal } from '@/components/upload/upload-modal';
+import { ShareModal } from '@/components/shares/share-modal';
 
 interface FolderItem {
   id: string;
@@ -52,6 +53,8 @@ export default function FoldersPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [showUpload, setShowUpload] = useState(false);
+  const [shareFile, setShareFile] = useState<{ id: string; name: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const insideFolder = parentId !== null;
@@ -60,6 +63,7 @@ export default function FoldersPage() {
     queryKey: ['folders', parentId],
     queryFn: () =>
       api.get(`/folders?${parentId ? `parentId=${parentId}` : 'root=true'}`).then((r) => r.data),
+    placeholderData: keepPreviousData,
   });
 
   const { data: fileData, isLoading: filesLoading } = useQuery({
@@ -118,6 +122,20 @@ export default function FoldersPage() {
     const crumb = breadcrumb[index];
     setParentId(crumb.id);
     setBreadcrumb((prev) => prev.slice(0, index + 1));
+  };
+
+  const copyDirectLink = async (fileId: string, fileName: string) => {
+    try {
+      const { data } = await api.post('/shares', { fileId });
+      const encoded = encodeURIComponent(fileName);
+      const viewUrl = `${API_URL}/api/shares/${data.token}/view/${encoded}`;
+      await navigator.clipboard.writeText(viewUrl);
+      setCopiedId(fileId);
+      toast.success('Direct link copied!');
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch {
+      toast.error('Failed to create link');
+    }
   };
 
   const downloadFile = (id: string, name: string) => {
@@ -264,20 +282,25 @@ export default function FoldersPage() {
           {folders.length > 0 && (
             <div>
               {insideFolder && <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Subfolders</p>}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={parentId ?? 'root'}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
+                >
                   {folders.map((folder) => (
                     <motion.div
                       key={folder.id}
                       layout
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
                       whileHover={{ y: -2 }}
+                      onClick={() => renamingId !== folder.id && navigateInto(folder)}
                       className="bg-card border border-border rounded-xl p-4 group cursor-pointer hover:shadow-md transition-all"
                     >
                       <div className="flex items-start justify-between mb-3">
-                        <div onClick={() => navigateInto(folder)}>
+                        <div>
                           <Folder className={cn('w-10 h-10', FOLDER_COLORS[folder.colorTag || 'default'])} />
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
@@ -314,7 +337,7 @@ export default function FoldersPage() {
                           </button>
                         </div>
                       ) : (
-                        <div onClick={() => navigateInto(folder)}>
+                        <div>
                           <p className="text-sm font-medium truncate">{folder.name}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {format(new Date(folder.createdAt), 'MMM dd, yyyy')}
@@ -323,8 +346,8 @@ export default function FoldersPage() {
                       )}
                     </motion.div>
                   ))}
-                </AnimatePresence>
-              </div>
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
 
@@ -373,6 +396,22 @@ export default function FoldersPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
+                          onClick={() => copyDirectLink(file.id, file.originalName)}
+                          className="p-1.5 rounded-lg hover:bg-muted transition text-muted-foreground hover:text-primary"
+                          title="Copy direct link"
+                        >
+                          {copiedId === file.id
+                            ? <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                            : <Link2 className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => setShareFile({ id: file.id, name: file.originalName })}
+                          className="p-1.5 rounded-lg hover:bg-muted transition text-muted-foreground hover:text-blue-500"
+                          title="Share with options"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => downloadFile(file.id, file.originalName)}
                           className="p-1.5 rounded-lg hover:bg-muted transition text-muted-foreground hover:text-foreground"
                           title="Download"
@@ -416,6 +455,12 @@ export default function FoldersPage() {
           queryClient.invalidateQueries({ queryKey: ['folder-files', parentId] });
         }}
         folderId={parentId ?? undefined}
+      />
+      <ShareModal
+        open={shareFile !== null}
+        onClose={() => setShareFile(null)}
+        fileId={shareFile?.id}
+        fileName={shareFile?.name}
       />
     </div>
   );
