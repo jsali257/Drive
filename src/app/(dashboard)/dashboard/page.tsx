@@ -67,6 +67,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
+        <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1">RGV911</p>
         <h1 className="text-2xl font-bold text-foreground">
           Welcome back, {user?.displayName || user?.username}
         </h1>

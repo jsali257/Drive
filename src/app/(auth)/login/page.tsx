@@ -46,6 +46,7 @@ export default function LoginPage() {
       >
         <div className="text-center mb-8">
           <img src="/storage_logo.png" alt="RGV911 Drive" className="h-14 object-contain mx-auto mb-4" />
+          <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1">RGV911</p>
           <h1 className="text-2xl font-bold text-foreground">Sign in</h1>
           <p className="text-muted-foreground mt-1">Enter your credentials to access your files</p>
         </div>
