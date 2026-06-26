@@ -54,6 +54,7 @@ export default function FoldersPage() {
   const [renameValue, setRenameValue] = useState('');
   const [showUpload, setShowUpload] = useState(false);
   const [shareFile, setShareFile] = useState<{ id: string; name: string } | null>(null);
+  const [shareFolder, setShareFolder] = useState<{ id: string; name: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -305,14 +306,23 @@ export default function FoldersPage() {
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                           <button
+                            onClick={(e) => { e.stopPropagation(); setShareFolder({ id: folder.id, name: folder.name }); }}
+                            className="p-1 rounded hover:bg-muted transition text-muted-foreground hover:text-blue-500"
+                            title="Share folder"
+                          >
+                            <Share2 className="w-3 h-3" />
+                          </button>
+                          <button
                             onClick={(e) => { e.stopPropagation(); setRenamingId(folder.id); setRenameValue(folder.name); }}
                             className="p-1 rounded hover:bg-muted transition text-muted-foreground hover:text-foreground"
+                            title="Rename"
                           >
                             <Pencil className="w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); trashFolderMutation.mutate(folder.id); }}
                             className="p-1 rounded hover:bg-muted transition text-muted-foreground hover:text-destructive"
+                            title="Delete"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
@@ -461,6 +471,12 @@ export default function FoldersPage() {
         onClose={() => setShareFile(null)}
         fileId={shareFile?.id}
         fileName={shareFile?.name}
+      />
+      <ShareModal
+        open={shareFolder !== null}
+        onClose={() => setShareFolder(null)}
+        folderId={shareFolder?.id}
+        fileName={shareFolder?.name}
       />
     </div>
   );

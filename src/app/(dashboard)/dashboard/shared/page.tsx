@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Share2, Copy, Trash2, RefreshCw, ShieldOff, Clock, Download,
   Lock, Globe, CheckCircle, Activity,
-  Monitor, Mail, MessageSquare, Globe2,
+  Monitor, Mail, MessageSquare, Globe2, KeyRound, Eye, EyeOff, X,
 } from 'lucide-react';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { toast } from 'sonner';
@@ -14,6 +14,14 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+
+function generatePassword(): string {
+  const words = ['Storm','River','Eagle','Falcon','Cedar','Ridge','Sierra','Delta','Cobra','Ranger'];
+  const w1 = words[Math.floor(Math.random() * words.length)];
+  const w2 = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${w1}-${num}-${w2}`;
+}
 
 function refererLabel(referer: string | null): string {
   if (!referer) return 'Direct / Unknown';
@@ -106,6 +114,9 @@ function AccessHistory({ shareId }: { shareId: string }) {
 export default function SharedPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
@@ -130,6 +141,19 @@ export default function SharedPage() {
       queryClient.invalidateQueries({ queryKey: ['shares'] });
     },
     onError: () => toast.error('Failed to delete share'),
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string | null }) =>
+      api.patch(`/shares/${id}/password`, { password }),
+    onSuccess: () => {
+      toast.success(newPassword ? 'Password updated' : 'Password removed');
+      queryClient.invalidateQueries({ queryKey: ['shares'] });
+      setResetPasswordId(null);
+      setNewPassword('');
+      setShowNewPassword(false);
+    },
+    onError: () => toast.error('Failed to update password'),
   });
 
   const copyLink = (token: string) => {
@@ -261,6 +285,20 @@ export default function SharedPage() {
                           <Activity className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => {
+                            setResetPasswordId(resetPasswordId === share.id ? null : share.id);
+                            setNewPassword('');
+                            setShowNewPassword(false);
+                          }}
+                          className={cn(
+                            'p-2 rounded-lg hover:bg-muted transition text-muted-foreground hover:text-orange-500',
+                            resetPasswordId === share.id && 'bg-muted text-orange-500',
+                          )}
+                          title="Reset password"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => copyLink(share.token)}
                           className="p-2 rounded-lg hover:bg-muted transition text-muted-foreground hover:text-foreground"
                           title="Copy link"
@@ -286,6 +324,66 @@ export default function SharedPage() {
                       </div>
                     </div>
                   </div>
+
+                  <AnimatePresence>
+                    {resetPasswordId === share.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="border-t border-border px-4 py-4 bg-muted/20">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                            <KeyRound className="w-3 h-3" />
+                            Reset Password
+                          </p>
+                          <div className="space-y-3">
+                            <div className="relative">
+                              <input
+                                type={showNewPassword ? 'text' : 'password'}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="New password (leave empty to remove)"
+                                className="w-full px-3 py-2 pr-9 rounded-lg bg-background border border-input text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              >
+                                {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { const p = generatePassword(); setNewPassword(p); setShowNewPassword(true); }}
+                              className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Auto-generate password
+                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => resetPasswordMutation.mutate({ id: share.id, password: newPassword || null })}
+                                disabled={resetPasswordMutation.isPending}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition disabled:opacity-50"
+                              >
+                                {resetPasswordMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
+                                {newPassword ? 'Save new password' : 'Remove password'}
+                              </button>
+                              <button
+                                onClick={() => { setResetPasswordId(null); setNewPassword(''); }}
+                                className="px-3 py-2 rounded-lg border border-border text-xs hover:bg-muted transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <AnimatePresence>
                     {isExpanded && (

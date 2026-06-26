@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Download, Lock, FileIcon, AlertCircle, CheckCircle, Loader2,
-  HardDrive, Eye, EyeOff, Clock, Shield, Copy, Link2, Code2,
+  Eye, EyeOff, Clock, Shield, Copy, Link2, Code2,
+  Folder, Files, ChevronRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -62,6 +63,120 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       {copied ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
       {copied ? 'Copied!' : 'Copy'}
     </button>
+  );
+}
+
+function FolderView({ folder, token, password, share }: { folder: any; token: string; password: string; share: any }) {
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const downloadFile = async (fileId: string, fileName: string) => {
+    setDownloading(fileId);
+    try {
+      const passwordParam = password ? `?password=${encodeURIComponent(password)}` : '';
+      const url = `${API_URL}/api/shares/${token}/folder-file/${fileId}/download${passwordParam}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.error('Download failed');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const files: any[] = folder.files || [];
+  const subfolders: any[] = folder.children || [];
+
+  return (
+    <div className="space-y-4">
+      {/* Folder header */}
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shrink-0">
+            <Folder className="w-6 h-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-foreground truncate text-lg">{folder.name}</p>
+            {folder.description && <p className="text-sm text-muted-foreground mt-0.5">{folder.description}</p>}
+            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1"><Files className="w-3.5 h-3.5" />{files.length} file{files.length !== 1 ? 's' : ''}</span>
+              {subfolders.length > 0 && (
+                <span className="flex items-center gap-1"><Folder className="w-3.5 h-3.5" />{subfolders.length} subfolder{subfolders.length !== 1 ? 's' : ''}</span>
+              )}
+              {share?.expiresAt && (
+                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Expires {format(new Date(share.expiresAt), 'MMM dd, yyyy')}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Subfolders */}
+      {subfolders.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Subfolders</p>
+          </div>
+          <div className="divide-y divide-border">
+            {subfolders.map((sub: any) => (
+              <div key={sub.id} className="flex items-center gap-3 px-4 py-3">
+                <Folder className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{sub.name}</p>
+                  <p className="text-xs text-muted-foreground">{sub._count?.files ?? 0} files</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Files */}
+      {files.length === 0 ? (
+        <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-sm">
+          <Files className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No files in this folder</p>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Files</p>
+          </div>
+          <div className="divide-y divide-border">
+            {files.map((file: any) => (
+              <div key={file.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                <div className={cn('p-2 rounded-lg shrink-0', getMimeColor(file.mimeType))}>
+                  <FileIcon className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.originalName}</p>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                    <span>{formatBytes(Number(file.size))}</span>
+                    <span>·</span>
+                    <span>{getMimeLabel(file.mimeType)}</span>
+                  </div>
+                </div>
+                {share?.allowDownload !== false && (
+                  <button
+                    onClick={() => downloadFile(file.id, file.originalName)}
+                    disabled={downloading === file.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition disabled:opacity-60 shrink-0"
+                  >
+                    {downloading === file.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    {downloading === file.id ? 'Downloading...' : 'Download'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -132,6 +247,7 @@ export default function ShareAccessPage() {
   };
 
   const file = shareData?.file;
+  const folder = shareData?.folder;
   const share = shareData;
   const category = file ? getMimeCategory(file.mimeType) : 'other';
 
@@ -173,7 +289,7 @@ export default function ShareAccessPage() {
         )}
 
         {/* Error */}
-        {!isLoading && error && !passwordRequired && (
+        {!isLoading && error && !passwordRequired && !shareData && (
           <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-sm">
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-6 h-6 text-red-500" />
@@ -199,7 +315,7 @@ export default function ShareAccessPage() {
                 <Lock className="w-6 h-6 text-orange-500" />
               </div>
               <h2 className="text-lg font-semibold">Password Required</h2>
-              <p className="text-sm text-muted-foreground mt-1 text-center">Enter the password to access this file.</p>
+              <p className="text-sm text-muted-foreground mt-1 text-center">Enter the password to access this shared content.</p>
             </div>
             <div className="space-y-3">
               <div className="relative">
@@ -235,10 +351,14 @@ export default function ShareAccessPage() {
           </div>
         )}
 
+        {/* Folder view */}
+        {!isLoading && folder && (
+          <FolderView folder={folder} token={token} password={password} share={share} />
+        )}
+
         {/* File view */}
         {!isLoading && file && (
           <div className="space-y-4">
-            {/* File header */}
             <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className={cn('p-3 rounded-xl shrink-0', getMimeColor(file.mimeType))}>
@@ -260,49 +380,27 @@ export default function ShareAccessPage() {
               </div>
             </div>
 
-            {/* Inline preview */}
             {category === 'image' && (
               <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex items-center justify-center p-2 min-h-[200px]">
-                <img
-                  src={viewUrl}
-                  alt={file.originalName}
-                  className="max-w-full max-h-[70vh] object-contain rounded-xl"
-                />
+                <img src={viewUrl} alt={file.originalName} className="max-w-full max-h-[70vh] object-contain rounded-xl" />
               </div>
             )}
-
             {category === 'video' && (
               <div className="bg-black rounded-2xl overflow-hidden shadow-sm">
-                <video
-                  controls
-                  className="w-full max-h-[70vh]"
-                  src={viewUrl}
-                >
-                  Your browser does not support video playback.
-                </video>
+                <video controls className="w-full max-h-[70vh]" src={viewUrl}>Your browser does not support video playback.</video>
               </div>
             )}
-
             {category === 'audio' && (
               <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-                <audio controls className="w-full" src={viewUrl}>
-                  Your browser does not support audio playback.
-                </audio>
+                <audio controls className="w-full" src={viewUrl}>Your browser does not support audio playback.</audio>
               </div>
             )}
-
             {category === 'pdf' && (
               <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                <iframe
-                  src={viewUrl}
-                  className="w-full"
-                  style={{ height: '75vh' }}
-                  title={file.originalName}
-                />
+                <iframe src={viewUrl} className="w-full" style={{ height: '75vh' }} title={file.originalName} />
               </div>
             )}
 
-            {/* Action buttons */}
             <div className="flex gap-2">
               {share?.allowDownload !== false && (
                 <button
@@ -315,22 +413,16 @@ export default function ShareAccessPage() {
               )}
               <button
                 onClick={() => setShowEmbed(!showEmbed)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border font-medium text-sm transition',
-                  showEmbed ? 'bg-muted' : 'hover:bg-muted',
-                )}
+                className={cn('flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border font-medium text-sm transition', showEmbed ? 'bg-muted' : 'hover:bg-muted')}
               >
                 <Code2 className="w-4 h-4" />
                 Embed
               </button>
             </div>
 
-            {/* Embed / URL panel */}
             {showEmbed && (
               <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
                 <h3 className="font-semibold text-sm">Direct URLs</h3>
-
-                {/* View URL */}
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
@@ -340,10 +432,7 @@ export default function ShareAccessPage() {
                     <code className="flex-1 text-xs bg-muted px-3 py-2 rounded-lg font-mono truncate">{viewUrl}</code>
                     <CopyButton text={viewUrl} label="View URL" />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Opens file in browser — use in &lt;img&gt;, &lt;video&gt;, &lt;iframe&gt;</p>
                 </div>
-
-                {/* Download URL */}
                 {share?.allowDownload !== false && (
                   <div>
                     <div className="flex items-center gap-1.5 mb-1.5">
@@ -356,8 +445,6 @@ export default function ShareAccessPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Embed code */}
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Code2 className="w-3.5 h-3.5 text-muted-foreground" />

@@ -5,7 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Share2, Link, Copy, CheckCircle, Lock, Globe, Clock, Download,
-  Loader2, Eye, EyeOff,
+  Loader2, Eye, EyeOff, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -17,6 +17,14 @@ interface ShareModalProps {
   fileId?: string;
   folderId?: string;
   fileName?: string;
+}
+
+function generatePassword(): string {
+  const words = ['Storm','River','Eagle','Falcon','Cedar','Ridge','Sierra','Delta','Cobra','Ranger'];
+  const w1 = words[Math.floor(Math.random() * words.length)];
+  const w2 = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${w1}-${num}-${w2}`;
 }
 
 export function ShareModal({ open, onClose, fileId, folderId, fileName }: ShareModalProps) {
@@ -95,7 +103,7 @@ export function ShareModal({ open, onClose, fileId, folderId, fileName }: ShareM
                 <Share2 className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Share File</h2>
+                <h2 className="text-base font-semibold">{folderId ? 'Share Folder' : 'Share File'}</h2>
                 {fileName && <p className="text-xs text-muted-foreground truncate max-w-[240px]">{fileName}</p>}
               </div>
             </div>
@@ -190,7 +198,7 @@ export function ShareModal({ open, onClose, fileId, folderId, fileName }: ShareM
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="px-3 pb-3 border-t border-border pt-3">
+                      <div className="px-3 pb-3 border-t border-border pt-3 space-y-2">
                         <div className="relative">
                           <input
                             type={showPassword ? 'text' : 'password'}
@@ -208,6 +216,13 @@ export function ShareModal({ open, onClose, fileId, folderId, fileName }: ShareM
                             {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                           </button>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => { setPassword(generatePassword()); setShowPassword(true); }}
+                          className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Auto-generate password
+                        </button>
                       </div>
                     </motion.div>
                   )}
